@@ -261,6 +261,8 @@ public:
 
     void notifyCappedWaitersIfNeeded();
 
+    void shutdown();
+
     class OplogStones;
 
     // Exposed only for testing.

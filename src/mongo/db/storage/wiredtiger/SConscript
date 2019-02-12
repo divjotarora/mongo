@@ -93,7 +93,6 @@ if wiredtiger:
         source=[
             'wiredtiger_init.cpp',
             'wiredtiger_options_init.cpp',
-            'wiredtiger_record_store_mongod.cpp',
             'wiredtiger_server_status.cpp',
         ],
         LIBDEPS=[

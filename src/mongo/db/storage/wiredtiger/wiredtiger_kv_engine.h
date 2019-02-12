@@ -290,19 +290,12 @@ public:
     }
 
     /**
-     * Sets the implementation for `initRsOplogBackgroundThread` (allowing tests to skip the
-     * background job, for example). Intended to be called from a MONGO_INITIALIZER and therefore in
-     * a single threaded context.
-     */
-    static void setInitRsOplogBackgroundThreadCallback(stdx::function<bool(StringData)> cb);
-
-    /**
-     * Initializes a background job to remove excess documents in the oplog collections.
+     * Starts an WiredTigerOplogTruncaterThread to remove excess documents in the oplog collections.
      * This applies to the capped collections in the local.oplog.* namespaces (specifically
      * local.oplog.rs for replica sets).
      * Returns true if a background job is running for the namespace.
      */
-    static bool initRsOplogBackgroundThread(StringData ns);
+    bool initRsOplogTruncaterThread(StringData ns);
 
     static void appendGlobalStats(BSONObjBuilder& b);
 
@@ -354,6 +347,7 @@ private:
     class WiredTigerSessionSweeper;
     class WiredTigerJournalFlusher;
     class WiredTigerCheckpointThread;
+    class WiredTigerOplogTruncaterThread;
 
     /**
      * Opens a connection on the WiredTiger database 'path' with the configuration 'wtOpenConfig'.
@@ -463,5 +457,9 @@ private:
     // Timestamp of data at startup. Used internally to advise checkpointing and recovery to a
     // timestamp. Provided by replication layer because WT does not persist timestamps.
     AtomicWord<std::uint64_t> _initialDataTimestamp;
+
+    stdx::mutex _oplogTruncaterMapMutex;
+    // Map of background namespaces to their associated WiredTigerOplogTruncaterThread
+    std::map<NamespaceString, std::unique_ptr<WiredTigerOplogTruncaterThread>> _oplogTruncaterMap;
 };
 }

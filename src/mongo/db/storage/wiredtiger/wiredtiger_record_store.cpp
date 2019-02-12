@@ -703,10 +703,6 @@ WiredTigerRecordStore::~WiredTigerRecordStore() {
         LOG(1) << "~WiredTigerRecordStore for temporary ident: " << getIdent();
     }
 
-    if (_oplogStones) {
-        _oplogStones->kill();
-    }
-
     if (_isOplog) {
         // Delete oplog visibility manager on KV engine.
         _kvEngine->haltOplogManager();
@@ -762,7 +758,7 @@ void WiredTigerRecordStore::postConstructorInit(OperationContext* opCtx) {
     if (_sizeStorer)
         _sizeStorer->store(_uri, _sizeInfo);
 
-    if (WiredTigerKVEngine::initRsOplogBackgroundThread(ns())) {
+    if (_kvEngine->initRsOplogTruncaterThread(ns())) {
         _oplogStones = std::make_shared<OplogStones>(opCtx, this);
     }
 
@@ -2228,6 +2224,10 @@ Status WiredTigerRecordStore::updateCappedSize(OperationContext* opCtx, long lon
         _oplogStones->adjust(cappedSize);
     }
     return Status::OK();
+}
+
+void WiredTigerRecordStore::shutdown() {
+    _oplogStones->kill();
 }
 
 }  // namespace mongo
