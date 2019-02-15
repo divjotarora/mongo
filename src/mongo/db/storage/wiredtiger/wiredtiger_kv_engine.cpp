@@ -521,7 +521,7 @@ private:
     AtomicWord<bool> _shuttingDown{false};
     // Cached copy of the record store to be used at shutdown because taking the DBLock in
     // _getRecordStore causes issues during shutdown.
-    std::atomic<WiredTigerRecordStore*> _recordStore{nullptr};
+    AtomicWord<WiredTigerRecordStore*> _recordStore{nullptr};
 
     WiredTigerRecordStore* _getRecordStore(OperationContext* opCtx) {
         // Release the database lock right away because we don't want to
