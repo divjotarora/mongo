@@ -297,6 +297,10 @@ public:
 
     bool isCapped() const final;
 
+    bool isTemp() const final;
+
+    void setTemp(bool temp) final;
+
     CappedCallback* getCappedCallback() final;
 
     /**
@@ -419,5 +423,7 @@ private:
 
     // The earliest snapshot that is allowed to use this collection.
     boost::optional<Timestamp> _minVisibleSnapshot;
+
+    bool _temp;
 };
 }  // namespace mongo

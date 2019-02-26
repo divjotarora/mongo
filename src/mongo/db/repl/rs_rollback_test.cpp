@@ -1173,6 +1173,7 @@ TEST_F(RSRollbackTest,
     auto collAfterRollbackOptions =
         collAfterRollback->getCatalogEntry()->getCollectionOptions(_opCtx.get());
     ASSERT_TRUE(collAfterRollbackOptions.temp);
+    ASSERT_TRUE(collAfterRollback->isTemp());
     ASSERT_BSONOBJ_EQ(BSON("uuid" << *options.uuid << "temp" << true),
                       collAfterRollbackOptions.toBSON());
 }

@@ -389,6 +389,10 @@ public:
 
     virtual bool isCapped() const = 0;
 
+    virtual bool isTemp() const = 0;
+
+    virtual void setTemp(bool temp) = 0;
+
     /**
      * Returns a pointer to a capped callback object.
      * The storage engine interacts with capped collections through a CappedCallback interface.

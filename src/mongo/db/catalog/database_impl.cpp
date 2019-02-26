@@ -154,8 +154,13 @@ public:
     RenameCollectionChange(DatabaseImpl* db,
                            Collection* coll,
                            NamespaceString fromNs,
-                           NamespaceString toNs)
-        : _db(db), _coll(coll), _fromNs(std::move(fromNs)), _toNs(std::move(toNs)) {}
+                           NamespaceString toNs,
+                           bool restoreTemp)
+        : _db(db),
+          _coll(coll),
+          _fromNs(std::move(fromNs)),
+          _toNs(std::move(toNs)),
+          _restoreTemp(restoreTemp) {}
 
     void commit(boost::optional<Timestamp> commitTime) override {
         // Ban reading from this collection on committed reads on snapshots before now.
@@ -170,12 +175,17 @@ public:
         invariant(it->second == _coll);
         _db->_collections[_fromNs.ns()] = _coll;
         _db->_collections.erase(_toNs.ns());
+
+        if (_restoreTemp) {
+            _coll->setTemp(true);
+        }
     }
 
     DatabaseImpl* const _db;
     Collection* const _coll;
     const NamespaceString _fromNs;
     const NamespaceString _toNs;
+    const bool _restoreTemp;
 };
 
 DatabaseImpl::~DatabaseImpl() {
@@ -726,10 +736,16 @@ Status DatabaseImpl::renameCollection(OperationContext* opCtx,
     // callers that may not hold a collection lock.
     UUIDCatalog::get(opCtx).setCollectionNamespace(opCtx, collToRename, fromNSS, toNSS);
 
+    bool restoreTemp = false;
+    if (!stayTemp && collToRename->isTemp()) {
+        collToRename->setTemp(false);
+        restoreTemp = true;
+    }
+
     // Register a Change which, on rollback, will reinstall the Collection* in the collections map
     // so that it is associated with 'fromNS', not 'toNS'.
     opCtx->recoveryUnit()->registerChange(
-        new RenameCollectionChange(this, collToRename, fromNSS, toNSS));
+        new RenameCollectionChange(this, collToRename, fromNSS, toNSS, restoreTemp));
 
     return s;
 }

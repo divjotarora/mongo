@@ -403,6 +403,7 @@ bool _isTempCollection(OperationContext* opCtx, const NamespaceString& nss) {
                             << " is a temporary collection because collection does not exist.";
     auto catalogEntry = collection->getCatalogEntry();
     auto options = catalogEntry->getCollectionOptions(opCtx);
+    ASSERT_EQUALS(collection->isTemp(), options.temp);
     return options.temp;
 }
 

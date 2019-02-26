@@ -219,7 +219,8 @@ CollectionImpl::CollectionImpl(OperationContext* opCtx,
       _validationLevel(uassertStatusOK(
           _parseValidationLevel(_details->getCollectionOptions(opCtx).validationLevel))),
       _cappedNotifier(_recordStore->isCapped() ? stdx::make_unique<CappedInsertNotifier>()
-                                               : nullptr) {
+                                               : nullptr),
+      _temp(_details->getCollectionOptions(opCtx).temp) {
 
     _indexCatalog->init(opCtx).transitional_ignore();
     if (isCapped())
@@ -730,6 +731,14 @@ StatusWith<RecordData> CollectionImpl::updateDocumentWithDamages(
 
 bool CollectionImpl::isCapped() const {
     return _cappedNotifier.get();
+}
+
+bool CollectionImpl::isTemp() const {
+    return _temp;
+}
+
+void CollectionImpl::setTemp(bool temp) {
+    _temp = temp;
 }
 
 CappedCallback* CollectionImpl::getCappedCallback() {

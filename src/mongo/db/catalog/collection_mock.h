@@ -226,6 +226,14 @@ public:
         std::abort();
     }
 
+    bool isTemp() const {
+        std::abort();
+    }
+
+    void setTemp(bool temp) {
+        std::abort();
+    }
+
     CappedCallback* getCappedCallback() {
         std::abort();
     }
