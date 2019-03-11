@@ -367,7 +367,7 @@ Status RollbackImpl::_awaitBgIndexCompletion(OperationContext* opCtx) {
     std::vector<std::string> dbs;
     {
         Lock::GlobalLock lk(opCtx, MODE_IS);
-        storageEngine->listDatabases(&dbs);
+        storageEngine->listDatabases(opCtx, &dbs);
     }
 
     // Wait for all background operations to complete by waiting on each database.
@@ -1067,7 +1067,7 @@ void RollbackImpl::_resetDropPendingState(OperationContext* opCtx) {
     storageEngine->clearDropPendingState();
 
     std::vector<std::string> dbNames;
-    storageEngine->listDatabases(&dbNames);
+    storageEngine->listDatabases(opCtx, &dbNames);
     auto databaseHolder = DatabaseHolder::get(opCtx);
     for (const auto& dbName : dbNames) {
         Lock::DBLock dbLock(opCtx, dbName, MODE_X);

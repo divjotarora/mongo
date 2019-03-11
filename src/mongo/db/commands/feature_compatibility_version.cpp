@@ -95,7 +95,7 @@ void FeatureCompatibilityVersion::unsetTargetUpgradeOrDowngrade(OperationContext
 
 void FeatureCompatibilityVersion::setIfCleanStartup(OperationContext* opCtx,
                                                     repl::StorageInterface* storageInterface) {
-    if (!isCleanStartUp())
+    if (!isCleanStartUp(opCtx))
         return;
 
     // If the server was not started with --shardsvr, the default featureCompatibilityVersion on
@@ -129,10 +129,10 @@ void FeatureCompatibilityVersion::setIfCleanStartup(OperationContext* opCtx,
                                              // replicated.
 }
 
-bool FeatureCompatibilityVersion::isCleanStartUp() {
+bool FeatureCompatibilityVersion::isCleanStartUp(OperationContext* opCtx) {
     std::vector<std::string> dbNames;
     StorageEngine* storageEngine = getGlobalServiceContext()->getStorageEngine();
-    storageEngine->listDatabases(&dbNames);
+    storageEngine->listDatabases(opCtx, &dbNames);
 
     for (auto&& dbName : dbNames) {
         if (dbName != "local") {

@@ -57,9 +57,9 @@ public:
         return _name;
     }
 
-    virtual bool exists() const = 0;
-    virtual bool isEmpty() const = 0;
-    virtual bool hasUserData() const = 0;
+    virtual bool exists(OperationContext* opCtx) const = 0;
+    virtual bool isEmpty(OperationContext* opCtx) const = 0;
+    virtual bool hasUserData(OperationContext* opCtx) const = 0;
 
     virtual int64_t sizeOnDisk(OperationContext* opCtx) const = 0;
 
@@ -83,13 +83,15 @@ public:
 
     // ----
 
-    virtual void getCollectionNamespaces(std::list<std::string>* out) const = 0;
+    virtual void getCollectionNamespaces(OperationContext* opCtx,
+                                         std::list<std::string>* out) const = 0;
 
     // The DatabaseCatalogEntry owns this, do not delete
-    virtual CollectionCatalogEntry* getCollectionCatalogEntry(StringData ns) const = 0;
+    virtual CollectionCatalogEntry* getCollectionCatalogEntry(OperationContext* opCtx,
+                                                              StringData ns) const = 0;
 
     // The DatabaseCatalogEntry owns this, do not delete
-    virtual RecordStore* getRecordStore(StringData ns) const = 0;
+    virtual RecordStore* getRecordStore(OperationContext* opCtx, StringData ns) const = 0;
 
     // Ownership passes to caller
     virtual IndexAccessMethod* getIndex(OperationContext* opCtx,

@@ -576,7 +576,7 @@ void updateUniqueIndexesOnUpgrade(OperationContext* opCtx) {
     StorageEngine* storageEngine = opCtx->getServiceContext()->getStorageEngine();
     {
         Lock::GlobalLock lk(opCtx, MODE_IS);
-        storageEngine->listDatabases(&dbNames);
+        storageEngine->listDatabases(opCtx, &dbNames);
     }
 
     for (auto it = dbNames.begin(); it != dbNames.end(); ++it) {
@@ -611,7 +611,7 @@ Status updateNonReplicatedUniqueIndexes(OperationContext* opCtx) {
     StorageEngine* storageEngine = opCtx->getServiceContext()->getStorageEngine();
     {
         Lock::GlobalLock lk(opCtx, MODE_IS);
-        storageEngine->listDatabases(&dbNames);
+        storageEngine->listDatabases(opCtx, &dbNames);
     }
     for (auto it = dbNames.begin(); it != dbNames.end(); ++it) {
         auto dbName = *it;

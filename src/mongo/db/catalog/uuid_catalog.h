@@ -174,11 +174,18 @@ public:
  */
 using CollectionUUID = UUID;
 class Database;
+class CollectionCatalogEntry;
 
 class UUIDCatalog {
     MONGO_DISALLOW_COPYING(UUIDCatalog);
 
 public:
+    class CollectionInfo {
+    public:
+        Collection* coll;
+        std::unique_ptr<CollectionCatalogEntry> collCatalogEntry;
+    };
+
     class iterator {
     public:
         using value_type = Collection*;
@@ -187,9 +194,10 @@ public:
 
         iterator(std::string dbName, uint64_t genNum, const UUIDCatalog& uuidCatalog);
         iterator(
-            std::map<std::pair<std::string, CollectionUUID>, Collection*>::const_iterator mapIter);
+            std::map<std::pair<std::string, CollectionUUID>, UUIDCatalog::CollectionInfo*>::const_iterator mapIter);
         pointer operator->();
         reference operator*();
+        CollectionCatalogEntry* getCollectionCatalogEntry();
         iterator operator++();
         iterator operator++(int);
 
@@ -207,9 +215,10 @@ public:
         std::string _dbName;
         boost::optional<CollectionUUID> _uuid;
         uint64_t _genNum;
-        std::map<std::pair<std::string, CollectionUUID>, Collection*>::const_iterator _mapIter;
+        std::map<std::pair<std::string, CollectionUUID>, UUIDCatalog::CollectionInfo*>::const_iterator _mapIter;
         const UUIDCatalog* _uuidCatalog;
         static constexpr Collection* _nullCollection = nullptr;
+        static constexpr CollectionCatalogEntry* _nullCatalogEntry = nullptr;
     };
 
     static UUIDCatalog& get(ServiceContext* svcCtx);
@@ -268,6 +277,24 @@ public:
     Collection* lookupCollectionByNamespace(const NamespaceString& nss) const;
 
     /**
+     * This function gets the CollectionCatalogEntry pointer that corresponds to the
+     * CollectionUUID.
+     */
+    CollectionCatalogEntry* lookupCollectionCatalogEntryByUUID(CollectionUUID uuid) const;
+
+    /**
+     * This function gets the CollectionCatalogEntry pointer that corresponds to the
+     * NamespaceString.
+     */
+    CollectionCatalogEntry* lookupCollectionCatalogEntryByNamespace(
+        const NamespaceString& nss) const;
+
+    /**
+     * This function removes the CollectionCatalogEntry that corresponds to the NamespaceString.
+     */
+    void removeCollectionCatalogEntryByNamespace(const NamespaceString& nss) const;
+
+    /**
      * This function gets the NamespaceString from the Collection* pointer that
      * corresponds to CollectionUUID uuid. If there is no such pointer, an empty
      * NamespaceString is returned. See onCloseCatalog/onOpenCatalog for more info.
@@ -305,6 +332,16 @@ public:
      */
     boost::optional<CollectionUUID> next(StringData db, CollectionUUID uuid);
 
+    /**
+     * Insert a CollectionCatalogEntry into the catalog.
+     */
+    void insertCollectionCatalogEntry(CollectionUUID uuid,
+                                      std::unique_ptr<CollectionCatalogEntry> entry);
+
+    void renameCollectionCatalogEntry(OperationContext* opCtx,
+                                      const NamespaceString& fromNss,
+                                      const NamespaceString& toNss);
+
     iterator begin(StringData db) const;
     iterator end() const;
 
@@ -324,16 +361,19 @@ private:
         _shadowCatalog;
 
     /**
-     * Ordered map from <database name, collection UUID> to a Collection object.
+     * Unordered map from Collection UUID to the corresponding CollectionInfo object.
      */
-    std::map<std::pair<std::string, CollectionUUID>, Collection*> _orderedCollections;
+    mongo::stdx::unordered_map<CollectionUUID,
+                               std::unique_ptr<CollectionInfo>,
+                               CollectionUUID::Hash>
+        _catalog;
 
     /**
-     * Unordered map from Collection UUID to the corresponding Collection object.
+     * Ordered map from <database name, collection UUID> to a Collection object.
      */
-    mongo::stdx::unordered_map<CollectionUUID, Collection*, CollectionUUID::Hash> _catalog;
+    std::map<std::pair<std::string, CollectionUUID>, CollectionInfo*> _orderedCollections;
 
-    mongo::stdx::unordered_map<NamespaceString, Collection*> _collections;
+    mongo::stdx::unordered_map<NamespaceString, CollectionInfo*> _collections;
     /**
      * Generation number to track changes to the catalog that could invalidate iterators.
      */

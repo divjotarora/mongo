@@ -102,7 +102,7 @@ public:
 
     virtual RecoveryUnit* newRecoveryUnit();
 
-    virtual void listDatabases(std::vector<std::string>* out) const;
+    virtual void listDatabases(OperationContext* opCtx, std::vector<std::string>* out) const;
 
     KVDatabaseCatalogEntryBase* getDatabaseCatalogEntry(OperationContext* opCtx,
                                                         StringData db) override;

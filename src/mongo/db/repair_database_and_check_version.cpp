@@ -228,7 +228,7 @@ void rebuildIndexes(OperationContext* opCtx, StorageEngine* storageEngine) {
         invariant(dbce,
                   str::stream() << "couldn't get database catalog entry for database "
                                 << collNss.db());
-        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(collNss.ns());
+        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(opCtx, collNss.ns());
         invariant(cce,
                   str::stream() << "couldn't get collection catalog entry for collection "
                                 << collNss.toString());
@@ -257,7 +257,8 @@ void rebuildIndexes(OperationContext* opCtx, StorageEngine* storageEngine) {
         NamespaceString collNss(entry.first);
 
         auto dbCatalogEntry = storageEngine->getDatabaseCatalogEntry(opCtx, collNss.db());
-        auto collCatalogEntry = dbCatalogEntry->getCollectionCatalogEntry(collNss.toString());
+        auto collCatalogEntry =
+            dbCatalogEntry->getCollectionCatalogEntry(opCtx, collNss.toString());
         for (const auto& indexName : entry.second.first) {
             log() << "Rebuilding index. Collection: " << collNss << " Index: " << indexName;
         }
@@ -307,7 +308,7 @@ StatusWith<bool> repairDatabasesAndCheckVersion(OperationContext* opCtx) {
     Lock::GlobalWrite lk(opCtx);
 
     std::vector<std::string> dbNames;
-    storageEngine->listDatabases(&dbNames);
+    storageEngine->listDatabases(opCtx, &dbNames);
 
     // Rebuilding indexes must be done before a database can be opened, except when using repair,
     // which rebuilds all indexes when it is done.
@@ -438,7 +439,7 @@ StatusWith<bool> repairDatabasesAndCheckVersion(OperationContext* opCtx) {
 
     // Refresh list of database names to include newly-created admin, if it exists.
     dbNames.clear();
-    storageEngine->listDatabases(&dbNames);
+    storageEngine->listDatabases(opCtx, &dbNames);
     for (const auto& dbName : dbNames) {
         if (dbName != "local") {
             nonLocalDatabases = true;

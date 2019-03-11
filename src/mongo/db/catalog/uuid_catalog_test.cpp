@@ -31,6 +31,7 @@
 #include <algorithm>
 
 #include "mongo/db/catalog/collection_mock.h"
+#include "mongo/db/storage/kv/kv_collection_catalog_entry.h"
 #include "mongo/db/operation_context_noop.h"
 #include "mongo/unittest/unittest.h"
 

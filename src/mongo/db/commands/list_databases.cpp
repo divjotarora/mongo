@@ -136,7 +136,7 @@ public:
             Lock::GlobalLock lk(opCtx, MODE_IS);
             CurOpFailpointHelpers::waitWhileFailPointEnabled(
                 &hangBeforeListDatabases, opCtx, "hangBeforeListDatabases", []() {});
-            storageEngine->listDatabases(&dbNames);
+            storageEngine->listDatabases(opCtx, &dbNames);
         }
 
         vector<BSONObj> dbInfos;
@@ -172,7 +172,7 @@ public:
                     opCtx, "sizeOnDisk", dbname, [&] { size = entry->sizeOnDisk(opCtx); });
                 b.append("sizeOnDisk", static_cast<double>(size));
 
-                b.appendBool("empty", entry->isEmpty());
+                b.appendBool("empty", entry->isEmpty(opCtx));
             }
             BSONObj curDbObj = b.obj();
 

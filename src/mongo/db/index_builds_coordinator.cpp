@@ -189,7 +189,7 @@ StatusWith<std::pair<long long, long long>> IndexBuildsCoordinator::startIndexRe
     }
 
     const auto& ns = cce->ns().ns();
-    auto rs = dbce->getRecordStore(ns);
+    auto rs = dbce->getRecordStore(opCtx, ns);
 
     ReplIndexBuildState::IndexCatalogStats indexCatalogStats;
 

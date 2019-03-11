@@ -153,7 +153,7 @@ public:
             stdx::make_unique<IndexDescriptor>(coll, IndexNames::findPluginName(spec), spec);
 
         DatabaseCatalogEntry* dbce = _storageEngine->getDatabaseCatalogEntry(opCtx, collNs.db());
-        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(collNs.ns());
+        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(opCtx, collNs.ns());
         const auto protocol = IndexBuildProtocol::kTwoPhase;
         auto ret = cce->prepareForIndexBuild(
             opCtx, descriptor.get(), protocol, isBackgroundSecondaryBuild);
@@ -166,19 +166,19 @@ public:
                         std::string sideWritesIdent,
                         std::string constraintViolationsIdent) {
         DatabaseCatalogEntry* dbce = _storageEngine->getDatabaseCatalogEntry(opCtx, collNs.db());
-        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(collNs.ns());
+        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(opCtx, collNs.ns());
         cce->setIndexBuildScanning(opCtx, key, sideWritesIdent, constraintViolationsIdent);
     }
 
     void indexBuildDrain(OperationContext* opCtx, NamespaceString collNs, std::string key) {
         DatabaseCatalogEntry* dbce = _storageEngine->getDatabaseCatalogEntry(opCtx, collNs.db());
-        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(collNs.ns());
+        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(opCtx, collNs.ns());
         cce->setIndexBuildDraining(opCtx, key);
     }
 
     void indexBuildSuccess(OperationContext* opCtx, NamespaceString collNs, std::string key) {
         DatabaseCatalogEntry* dbce = _storageEngine->getDatabaseCatalogEntry(opCtx, collNs.db());
-        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(collNs.ns());
+        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(opCtx, collNs.ns());
         cce->indexBuildSuccess(opCtx, key);
     }
 

@@ -130,7 +130,7 @@ Status rebuildIndexesOnCollection(OperationContext* opCtx,
     auto[numRecords, dataSize] = swRebuild.getValue();
 
     const auto& ns = cce->ns().ns();
-    auto rs = dbce->getRecordStore(ns);
+    auto rs = dbce->getRecordStore(opCtx, ns);
 
     // Update the record store stats after finishing and committing the index builds.
     WriteUnitOfWork wuow(opCtx);
@@ -149,7 +149,7 @@ Status repairCollections(OperationContext* opCtx,
     DatabaseCatalogEntry* dbce = engine->getDatabaseCatalogEntry(opCtx, dbName);
 
     std::list<std::string> colls;
-    dbce->getCollectionNamespaces(&colls);
+    dbce->getCollectionNamespaces(opCtx, &colls);
 
     for (std::list<std::string>::const_iterator it = colls.begin(); it != colls.end(); ++it) {
         opCtx->checkForInterrupt();
@@ -166,7 +166,7 @@ Status repairCollections(OperationContext* opCtx,
     for (std::list<std::string>::const_iterator it = colls.begin(); it != colls.end(); ++it) {
         opCtx->checkForInterrupt();
 
-        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(*it);
+        CollectionCatalogEntry* cce = dbce->getCollectionCatalogEntry(opCtx, *it);
         auto swIndexNameObjs = getIndexNameObjs(opCtx, dbce, cce);
         if (!swIndexNameObjs.isOK())
             return swIndexNameObjs.getStatus();

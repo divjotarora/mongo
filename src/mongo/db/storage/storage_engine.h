@@ -163,7 +163,7 @@ public:
      *
      * XXX: why doesn't this take OpCtx?
      */
-    virtual void listDatabases(std::vector<std::string>* out) const = 0;
+    virtual void listDatabases(OperationContext* opCtx, std::vector<std::string>* out) const = 0;
 
     /**
      * Return the DatabaseCatalogEntry that describes the database indicated by 'db'.

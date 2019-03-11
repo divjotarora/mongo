@@ -124,8 +124,6 @@ KVCollectionCatalogEntry::KVCollectionCatalogEntry(KVStorageEngineInterface* eng
       _ident(ident.toString()),
       _recordStore(std::move(rs)) {}
 
-KVCollectionCatalogEntry::~KVCollectionCatalogEntry() {}
-
 bool KVCollectionCatalogEntry::setIndexIsMultikey(OperationContext* opCtx,
                                                   StringData indexName,
                                                   const MultikeyPaths& multikeyPaths) {
@@ -406,6 +404,10 @@ void KVCollectionCatalogEntry::updateCappedSize(OperationContext* opCtx, long lo
     MetaData md = _getMetaData(opCtx);
     md.options.cappedSize = size;
     _catalog->putMetaData(opCtx, ns().toString(), md);
+}
+
+OptionalCollectionUUID KVCollectionCatalogEntry::getUUID(OperationContext* opCtx) const {
+    return _getMetaData(opCtx).options.uuid;
 }
 
 BSONCollectionCatalogEntry::MetaData KVCollectionCatalogEntry::_getMetaData(

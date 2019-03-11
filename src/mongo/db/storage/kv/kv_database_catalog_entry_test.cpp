@@ -50,12 +50,11 @@ TEST_F(ServiceContextTest, CreateCollectionValidNamespace) {
         new DevNullKVEngine(), KVStorageEngineOptions{}, kvDatabaseCatalogEntryMockFactory);
     storageEngine.finishInit();
     KVDatabaseCatalogEntryMock dbEntry("mydb", &storageEngine);
-    OperationContextNoop ctx;
-    ASSERT_OK(
-        dbEntry.createCollection(&ctx, NamespaceString("mydb.mycoll"), CollectionOptions(), true));
-    std::list<std::string> collectionNamespaces;
-    dbEntry.getCollectionNamespaces(&collectionNamespaces);
-    ASSERT_FALSE(collectionNamespaces.empty());
+    auto opCtx = makeOperationContext();
+
+    auto opts = CollectionOptions();
+    opts.uuid.reset(UUID::gen());
+    ASSERT_OK(dbEntry.createCollection(opCtx.get(), NamespaceString("mydb.mycoll"), opts, true));
 }
 
 /**
@@ -82,11 +81,11 @@ TEST_F(ServiceContextTest, CreateCollectionInvalidRecordStore) {
                                   kvDatabaseCatalogEntryMockFactory);
     storageEngine.finishInit();
     KVDatabaseCatalogEntryMock dbEntry("fail", &storageEngine);
-    OperationContextNoop ctx;
+    auto opCtx = makeOperationContext();
     ASSERT_NOT_OK(
-        dbEntry.createCollection(&ctx, NamespaceString("fail.me"), CollectionOptions(), true));
+        dbEntry.createCollection(opCtx.get(), NamespaceString("fail.me"), CollectionOptions(), true));
     std::list<std::string> collectionNamespaces;
-    dbEntry.getCollectionNamespaces(&collectionNamespaces);
+    dbEntry.getCollectionNamespaces(opCtx.get(), &collectionNamespaces);
     ASSERT_TRUE(collectionNamespaces.empty());
 }
 
@@ -95,8 +94,8 @@ DEATH_TEST_F(ServiceContextTest, CreateCollectionEmptyNamespace, "Invariant fail
         new DevNullKVEngine(), KVStorageEngineOptions{}, kvDatabaseCatalogEntryMockFactory);
     storageEngine.finishInit();
     KVDatabaseCatalogEntryMock dbEntry("mydb", &storageEngine);
-    OperationContextNoop ctx;
-    Status status = dbEntry.createCollection(&ctx, NamespaceString(""), CollectionOptions(), true);
+    auto opCtx = makeOperationContext();
+    Status status = dbEntry.createCollection(opCtx.get(), NamespaceString(""), CollectionOptions(), true);
 }
 
 

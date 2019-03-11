@@ -49,8 +49,6 @@ public:
                              StringData ident,
                              std::unique_ptr<RecordStore> rs);
 
-    ~KVCollectionCatalogEntry() final;
-
     int getMaxAllowedIndexes() const final {
         return 64;
     };
@@ -119,6 +117,8 @@ public:
     const RecordStore* getRecordStore() const {
         return _recordStore.get();
     }
+
+    OptionalCollectionUUID getUUID(OperationContext* opCtx) const;
 
 protected:
     MetaData _getMetaData(OperationContext* opCtx) const final;

@@ -187,7 +187,7 @@ public:
         Database* db = autoDb.getDb();
         std::list<std::string> colls;
         if (db) {
-            db->getDatabaseCatalogEntry()->getCollectionNamespaces(&colls);
+            db->getDatabaseCatalogEntry()->getCollectionNamespaces(opCtx, &colls);
             colls.sort();
         }
 

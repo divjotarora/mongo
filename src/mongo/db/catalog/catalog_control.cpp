@@ -49,7 +49,7 @@ MinVisibleTimestampMap closeCatalog(OperationContext* opCtx) {
 
     MinVisibleTimestampMap minVisibleTimestampMap;
     std::vector<std::string> allDbs;
-    opCtx->getServiceContext()->getStorageEngine()->listDatabases(&allDbs);
+    opCtx->getServiceContext()->getStorageEngine()->listDatabases(opCtx, &allDbs);
 
     auto databaseHolder = DatabaseHolder::get(opCtx);
     for (auto&& dbName : allDbs) {
@@ -112,7 +112,8 @@ void openCatalog(OperationContext* opCtx, const MinVisibleTimestampMap& minVisib
         invariant(dbCatalogEntry,
                   str::stream() << "couldn't get database catalog entry for database "
                                 << collNss.db());
-        auto collCatalogEntry = dbCatalogEntry->getCollectionCatalogEntry(collNss.toString());
+        auto collCatalogEntry =
+            dbCatalogEntry->getCollectionCatalogEntry(opCtx, collNss.toString());
         invariant(collCatalogEntry,
                   str::stream() << "couldn't get collection catalog entry for collection "
                                 << collNss.toString());
@@ -150,7 +151,8 @@ void openCatalog(OperationContext* opCtx, const MinVisibleTimestampMap& minVisib
         invariant(dbCatalogEntry,
                   str::stream() << "couldn't get database catalog entry for database "
                                 << collNss.db());
-        auto collCatalogEntry = dbCatalogEntry->getCollectionCatalogEntry(collNss.toString());
+        auto collCatalogEntry =
+            dbCatalogEntry->getCollectionCatalogEntry(opCtx, collNss.toString());
         invariant(collCatalogEntry,
                   str::stream() << "couldn't get collection catalog entry for collection "
                                 << collNss.toString());
@@ -170,14 +172,14 @@ void openCatalog(OperationContext* opCtx, const MinVisibleTimestampMap& minVisib
     auto& uuidCatalog = UUIDCatalog::get(opCtx);
     auto databaseHolder = DatabaseHolder::get(opCtx);
     std::vector<std::string> databasesToOpen;
-    storageEngine->listDatabases(&databasesToOpen);
+    storageEngine->listDatabases(opCtx, &databasesToOpen);
     for (auto&& dbName : databasesToOpen) {
         LOG(1) << "openCatalog: dbholder reopening database " << dbName;
         auto db = databaseHolder->openDb(opCtx, dbName);
         invariant(db, str::stream() << "failed to reopen database " << dbName);
 
         std::list<std::string> collections;
-        db->getDatabaseCatalogEntry()->getCollectionNamespaces(&collections);
+        db->getDatabaseCatalogEntry()->getCollectionNamespaces(opCtx, &collections);
         for (auto&& collName : collections) {
             // Note that the collection name already includes the database component.
             NamespaceString collNss(collName);

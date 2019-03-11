@@ -100,8 +100,9 @@ std::unique_ptr<Collection> _createCollectionInstance(OperationContext* opCtx,
                                                       DatabaseCatalogEntry* dbEntry,
                                                       const NamespaceString& nss) {
 
-    std::unique_ptr<CollectionCatalogEntry> cce(dbEntry->getCollectionCatalogEntry(nss.ns()));
-    std::unique_ptr<RecordStore> rs(dbEntry->getRecordStore(nss.ns()));
+    std::unique_ptr<CollectionCatalogEntry> cce(
+        dbEntry->getCollectionCatalogEntry(opCtx, nss.ns()));
+    std::unique_ptr<RecordStore> rs(dbEntry->getRecordStore(opCtx, nss.ns()));
     auto uuid = cce->getCollectionOptions(opCtx).uuid;
     invariant(rs,
               str::stream() << "Record store did not exist. Collection: " << nss.ns() << " UUID: "
@@ -198,7 +199,7 @@ void DatabaseImpl::init(OperationContext* const opCtx) {
     _profile = serverGlobalParams.defaultProfile;
 
     std::list<std::string> collections;
-    _dbEntry->getCollectionNamespaces(&collections);
+    _dbEntry->getCollectionNamespaces(opCtx, &collections);
 
     invariant(_collections.empty());
     for (auto ns : collections) {
@@ -228,12 +229,12 @@ void DatabaseImpl::clearTmpCollections(OperationContext* opCtx) {
     invariant(opCtx->lockState()->isDbLockedForMode(name(), MODE_X));
 
     std::list<std::string> collections;
-    _dbEntry->getCollectionNamespaces(&collections);
+    _dbEntry->getCollectionNamespaces(opCtx, &collections);
 
     for (auto ns : collections) {
         invariant(NamespaceString::normal(ns));
 
-        CollectionCatalogEntry* coll = _dbEntry->getCollectionCatalogEntry(ns);
+        CollectionCatalogEntry* coll = _dbEntry->getCollectionCatalogEntry(opCtx, ns);
 
         CollectionOptions options = coll->getCollectionOptions(opCtx);
 
@@ -316,8 +317,7 @@ void DatabaseImpl::getStats(OperationContext* opCtx, BSONObjBuilder* output, dou
 
     invariant(opCtx->lockState()->isDbLockedForMode(name(), MODE_IS));
     std::list<std::string> collections;
-    _dbEntry->getCollectionNamespaces(&collections);
-
+    _dbEntry->getCollectionNamespaces(opCtx, &collections);
 
     for (auto ns : collections) {
         Lock::CollectionLock colLock(opCtx->lockState(), ns, MODE_IS);
@@ -888,7 +888,7 @@ void DatabaseImpl::checkForIdIndexesAndDropPendingCollections(OperationContext* 
     }
 
     std::list<std::string> collectionNames;
-    getDatabaseCatalogEntry()->getCollectionNamespaces(&collectionNames);
+    getDatabaseCatalogEntry()->getCollectionNamespaces(opCtx, &collectionNames);
 
     for (const auto& collectionName : collectionNames) {
         const NamespaceString ns(collectionName);

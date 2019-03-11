@@ -92,7 +92,7 @@ public:
         auto opCtx = newOperationContext();
         DatabaseCatalogEntry* dbEntry =
             _storageEngine.getDatabaseCatalogEntry(opCtx.get(), _nss.db());
-        return dbEntry->getCollectionCatalogEntry(_nss.ns());
+        return dbEntry->getCollectionCatalogEntry(opCtx.get(), _nss.ns());
     }
 
     std::string createIndex(BSONObj keyPattern,

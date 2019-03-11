@@ -47,7 +47,7 @@ public:
     RecoveryUnit* newRecoveryUnit() final {
         return nullptr;
     }
-    void listDatabases(std::vector<std::string>* out) const final {}
+    void listDatabases(OperationContext* opCtx, std::vector<std::string>* out) const final {}
     DatabaseCatalogEntry* getDatabaseCatalogEntry(OperationContext* opCtx, StringData db) final {
         return nullptr;
     }

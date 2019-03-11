@@ -434,7 +434,7 @@ Status ReplicationCoordinatorExternalStateImpl::initializeReplSetStorage(Operati
         // may need to have unique index version updated. Such indexes would be updated during
         // InitialSync because the new node is a secondary.
         if (serverGlobalParams.clusterRole != ClusterRole::ShardServer &&
-            FeatureCompatibilityVersion::isCleanStartUp()) {
+            FeatureCompatibilityVersion::isCleanStartUp(opCtx)) {
             auto updateStatus = updateNonReplicatedUniqueIndexes(opCtx);
             if (!updateStatus.isOK())
                 return updateStatus;
@@ -810,7 +810,7 @@ void ReplicationCoordinatorExternalStateImpl::_dropAllTempCollections(OperationC
 
     std::vector<std::string> dbNames;
     StorageEngine* storageEngine = _service->getStorageEngine();
-    storageEngine->listDatabases(&dbNames);
+    storageEngine->listDatabases(opCtx, &dbNames);
 
     for (std::vector<std::string>::iterator it = dbNames.begin(); it != dbNames.end(); ++it) {
         // The local db is special because it isn't replicated. It is cleared at startup even on

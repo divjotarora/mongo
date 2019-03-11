@@ -140,7 +140,7 @@ Database* DatabaseHolderImpl::openDb(OperationContext* opCtx, StringData ns, boo
     StorageEngine* storageEngine = getGlobalServiceContext()->getStorageEngine();
     DatabaseCatalogEntry* entry = storageEngine->getDatabaseCatalogEntry(opCtx, dbname);
 
-    if (!entry->exists()) {
+    if (!entry->exists(opCtx)) {
         audit::logCreateDatabase(opCtx->getClient(), dbname);
         if (justCreated)
             *justCreated = true;

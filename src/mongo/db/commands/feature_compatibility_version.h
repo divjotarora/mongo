@@ -85,7 +85,7 @@ public:
      * Returns true if the server is on a clean startup. A clean startup means there are no
      * databases on disk besides the local database.
      */
-    static bool isCleanStartUp();
+    static bool isCleanStartUp(OperationContext* opCtx);
 
     /**
      * Examines a document inserted or updated in the server configuration collection

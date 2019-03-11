@@ -552,10 +552,10 @@ RecoveryUnit* KVStorageEngine::newRecoveryUnit() {
     return _engine->newRecoveryUnit();
 }
 
-void KVStorageEngine::listDatabases(std::vector<std::string>* out) const {
+void KVStorageEngine::listDatabases(OperationContext* opCtx, std::vector<std::string>* out) const {
     stdx::lock_guard<stdx::mutex> lk(_dbsLock);
     for (DBMap::const_iterator it = _dbs.begin(); it != _dbs.end(); ++it) {
-        if (it->second->isEmpty())
+        if (it->second->isEmpty(opCtx))
             continue;
         out->push_back(it->first);
     }
@@ -588,7 +588,7 @@ Status KVStorageEngine::dropDatabase(OperationContext* opCtx, StringData db) {
     }
 
     std::list<std::string> toDrop;
-    entry->getCollectionNamespaces(&toDrop);
+    entry->getCollectionNamespaces(opCtx, &toDrop);
 
     // Do not timestamp any of the following writes. This will remove entries from the catalog as
     // well as drop any underlying tables. It's not expected for dropping tables to be reversible

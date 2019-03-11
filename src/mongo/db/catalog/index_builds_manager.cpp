@@ -143,7 +143,7 @@ StatusWith<std::pair<long long, long long>> IndexBuildsManager::startBuildingInd
 
     auto const storageEngine = opCtx->getServiceContext()->getStorageEngine();
     auto dbCatalogEntry = storageEngine->getDatabaseCatalogEntry(opCtx, ns.db());
-    auto rs = dbCatalogEntry->getRecordStore(ns.ns());
+    auto rs = dbCatalogEntry->getRecordStore(opCtx, ns.ns());
 
     // Iterate all records in the collection. Delete them if they aren't valid BSON. Index them
     // if they are.

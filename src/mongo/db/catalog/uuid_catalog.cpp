@@ -34,6 +34,7 @@
 
 #include "mongo/db/catalog/database.h"
 #include "mongo/db/catalog/database_holder.h"
+#include "mongo/db/storage/kv/kv_collection_catalog_entry.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/log.h"
@@ -106,7 +107,7 @@ UUIDCatalog::iterator::iterator(std::string dbName, uint64_t genNum, const UUIDC
 }
 
 UUIDCatalog::iterator::iterator(
-    std::map<std::pair<std::string, CollectionUUID>, Collection*>::const_iterator mapIter)
+    std::map<std::pair<std::string, CollectionUUID>, UUIDCatalog::CollectionInfo*>::const_iterator mapIter)
     : _mapIter(mapIter) {}
 
 UUIDCatalog::iterator::pointer UUIDCatalog::iterator::operator->() {
@@ -116,7 +117,7 @@ UUIDCatalog::iterator::pointer UUIDCatalog::iterator::operator->() {
         return nullptr;
     }
 
-    return &_mapIter->second;
+    return &_mapIter->second->coll;
 }
 
 UUIDCatalog::iterator::reference UUIDCatalog::iterator::operator*() {
@@ -126,7 +127,21 @@ UUIDCatalog::iterator::reference UUIDCatalog::iterator::operator*() {
         return _nullCollection;
     }
 
-    return _mapIter->second;
+    return _mapIter->second->coll;
+}
+
+CollectionCatalogEntry* UUIDCatalog::iterator::getCollectionCatalogEntry() {
+    stdx::lock_guard<stdx::mutex> lock(_uuidCatalog->_catalogLock);
+    _repositionIfNeeded();
+    if (_exhausted()) {
+        return _nullCatalogEntry;
+    }
+
+    auto uuid = *(_mapIter->second->coll->uuid());
+    auto catalogIt = _uuidCatalog->_catalog.find(uuid);
+    invariant(catalogIt != _uuidCatalog->_catalog.end());
+
+    return catalogIt->second->collCatalogEntry.get();
 }
 
 UUIDCatalog::iterator UUIDCatalog::iterator::operator++() {
@@ -237,15 +252,21 @@ void UUIDCatalog::setCollectionNamespace(OperationContext* opCtx,
     invariant(coll);
     stdx::lock_guard<stdx::mutex> lock(_catalogLock);
     coll->setNs(toCollection);
-    invariant(_collections.erase(fromCollection) > 0);
-    auto collEntry = std::make_pair(toCollection, coll);
-    invariant(_collections.insert(collEntry).second == true);
+
+    auto it = _collections.find(fromCollection);
+    invariant(it != _collections.end());
+    auto collInfo = it->second;
+    _collections.erase(it);
+    auto entry = std::make_pair(toCollection, collInfo);
+    invariant(_collections.insert(entry).second == true);
 
     opCtx->recoveryUnit()->onRollback([this, coll, fromCollection, toCollection] {
         stdx::lock_guard<stdx::mutex> lock(_catalogLock);
         coll->setNs(std::move(fromCollection));
-        _collections.erase(toCollection);
-        auto collEntry = std::make_pair(fromCollection, coll);
+        auto it = _collections.find(toCollection);
+        auto collInfo = it->second;
+        _collections.erase(it);
+        auto collEntry = std::make_pair(fromCollection, collInfo);
         _collections.insert(collEntry);
     });
 }
@@ -265,8 +286,8 @@ void UUIDCatalog::onCloseCatalog(OperationContext* opCtx) {
     stdx::lock_guard<stdx::mutex> lock(_catalogLock);
     invariant(!_shadowCatalog);
     _shadowCatalog.emplace();
-    for (auto entry : _catalog)
-        _shadowCatalog->insert({entry.first, entry.second->ns()});
+    for (auto& entry : _catalog)
+        _shadowCatalog->insert({entry.first, entry.second->coll->ns()});
 }
 
 void UUIDCatalog::onOpenCatalog(OperationContext* opCtx) {
@@ -279,20 +300,46 @@ void UUIDCatalog::onOpenCatalog(OperationContext* opCtx) {
 Collection* UUIDCatalog::lookupCollectionByUUID(CollectionUUID uuid) const {
     stdx::lock_guard<stdx::mutex> lock(_catalogLock);
     auto foundIt = _catalog.find(uuid);
-    return foundIt == _catalog.end() ? nullptr : foundIt->second;
+    return foundIt == _catalog.end() ? nullptr : foundIt->second->coll;
 }
 
 Collection* UUIDCatalog::lookupCollectionByNamespace(const NamespaceString& nss) const {
     stdx::lock_guard<stdx::mutex> lock(_catalogLock);
     auto it = _collections.find(nss);
-    return it == _collections.end() ? nullptr : it->second;
+    return it == _collections.end() ? nullptr : it->second->coll;
+}
+
+CollectionCatalogEntry* UUIDCatalog::lookupCollectionCatalogEntryByUUID(CollectionUUID uuid) const {
+    stdx::lock_guard<stdx::mutex> lock(_catalogLock);
+    auto foundIt = _catalog.find(uuid);
+    return foundIt == _catalog.end() ? nullptr : foundIt->second->collCatalogEntry.get();
+}
+
+CollectionCatalogEntry* UUIDCatalog::lookupCollectionCatalogEntryByNamespace(
+    const NamespaceString& nss) const {
+    stdx::lock_guard<stdx::mutex> lock(_catalogLock);
+    auto collIt = _collections.find(nss);
+
+    return collIt == _collections.end() ? nullptr : collIt->second->collCatalogEntry.get();
+}
+
+void UUIDCatalog::removeCollectionCatalogEntryByNamespace(const NamespaceString& nss) const {
+    stdx::lock_guard<stdx::mutex> lock(_catalogLock);
+    auto collIt = _collections.find(nss);
+    invariant(collIt != _collections.end());
+
+    auto uuid = *(collIt->second->coll->uuid());
+    auto catalogIt = _catalog.find(uuid);
+    invariant(catalogIt != _catalog.end());
+
+    catalogIt->second->collCatalogEntry.reset();
 }
 
 NamespaceString UUIDCatalog::lookupNSSByUUID(CollectionUUID uuid) const {
     stdx::lock_guard<stdx::mutex> lock(_catalogLock);
     auto foundIt = _catalog.find(uuid);
     if (foundIt != _catalog.end())
-        return foundIt->second->ns();
+        return foundIt->second->coll->ns();
 
     // Only in the case that the catalog is closed and a UUID is currently unknown, resolve it
     // using the pre-close state. This ensures that any tasks reloading the catalog can see their
@@ -359,23 +406,70 @@ boost::optional<CollectionUUID> UUIDCatalog::next(StringData db, CollectionUUID 
     return nextEntry->first.second;
 }
 
+void UUIDCatalog::insertCollectionCatalogEntry(CollectionUUID uuid,
+                                               std::unique_ptr<CollectionCatalogEntry> entry) {
+    stdx::lock_guard<stdx::mutex> lock(_catalogLock);
+    auto foundIt = _catalog.find(uuid);
+
+    // If CollectionInfo already exists for this UUID, just set the catalog entry pointer.
+    if (foundIt != _catalog.end()) {
+        foundIt->second.get()->collCatalogEntry = std::move(entry);
+        return;
+    }
+
+    auto collInfo = std::make_unique<UUIDCatalog::CollectionInfo>();
+    collInfo->collCatalogEntry = std::move(entry);
+
+    auto collNs = collInfo->collCatalogEntry->ns();
+    auto dbName = collNs.db();
+    auto orderedPair = std::make_pair(std::make_pair(dbName.toString(), uuid), collInfo.get());
+    invariant(_orderedCollections.insert(orderedPair).second == true);
+
+    auto collectionsPair = std::make_pair(collNs, collInfo.get());
+    invariant(_collections.insert(collectionsPair).second == true);
+
+    invariant(_catalog.insert(std::make_pair(uuid, std::move(collInfo))).second == true);
+}
+
+void UUIDCatalog::renameCollectionCatalogEntry(OperationContext* opCtx,
+                                               const NamespaceString& fromNss,
+                                               const NamespaceString& toNss) {
+    // No mappings need to change because the mapping in _collections will change in
+    // UUIDCatalog::setCollectionNamespace() and the UUID of the collection will not change so
+    // the _catalog and _orderedCollections maps will not be modified.
+
+    stdx::lock_guard<stdx::mutex> lock(_catalogLock);
+    auto fromIt = _collections.find(fromNss);
+    invariant(fromIt != _collections.end());
+    auto uuid = fromIt->second->coll->uuid();
+
+    auto fromCatalogIt = _catalog.find(*uuid);
+    invariant(fromCatalogIt != _catalog.end());
+    fromCatalogIt->second->collCatalogEntry->setNs(toNss);
+
+    opCtx->recoveryUnit()->onRollback([this, uuid, fromNss] {
+        stdx::lock_guard<stdx::mutex> lock(_catalogLock);
+        auto it = _catalog.find(*uuid);
+        it->second->collCatalogEntry->setNs(fromNss);
+    });
+}
+
 void UUIDCatalog::_registerUUIDCatalogEntry_inlock(CollectionUUID uuid, Collection* coll) {
     // Collection is invalid or this UUID is already taken.
-    if (!coll || (_catalog.find(uuid) != _catalog.end())) {
+    if (!coll) {
+        return;
+    }
+    auto catalogIt = _catalog.find(uuid);
+    if (catalogIt->second->coll) {
         return;
     }
 
     LOG(2) << "registering collection " << coll->ns() << " with UUID " << uuid;
 
-    auto unorderedEntry = std::make_pair(uuid, coll);
-    invariant(_catalog.insert(unorderedEntry).second == true);
-
-    auto dbIdPair = std::make_pair(coll->ns().db().toString(), uuid);
-    auto orderedEntry = std::make_pair(dbIdPair, coll);
-    invariant(_orderedCollections.insert(orderedEntry).second == true);
-
-    std::pair<NamespaceString, Collection*> collNameEntry = std::make_pair(coll->ns(), coll);
-    invariant(_collections.insert(collNameEntry).second == true);
+    // At this point, the corresponding CollectionCatalogEntry has already been registered so
+    // all maps are pointing to a CollectionInfo that is missing a Collection.
+    invariant(catalogIt != _catalog.end());
+    catalogIt->second->coll = coll;
 }
 Collection* UUIDCatalog::_removeUUIDCatalogEntry_inlock(CollectionUUID uuid) {
     auto foundIt = _catalog.find(uuid);
@@ -383,12 +477,15 @@ Collection* UUIDCatalog::_removeUUIDCatalogEntry_inlock(CollectionUUID uuid) {
         return nullptr;
     }
 
-    auto foundColl = foundIt->second;
+    // A Collection object might not exist even though the UUID has already been registered because
+    // the UUID gets inserted with a CollectionInfo pointing to a null Collection.
+    auto foundColl = foundIt->second->coll;
+    if (!foundColl) {
+        return nullptr;
+    }
+
     LOG(2) << "unregistering collection " << foundColl->ns() << " with UUID " << uuid;
-    auto dbName = foundColl->ns().db().toString();
-    _catalog.erase(foundIt);
-    _orderedCollections.erase(std::make_pair(dbName, uuid));
-    _collections.erase(foundColl->ns());
+    foundIt->second->coll = nullptr;
 
     // Removal from an ordered map will invalidate iterators and potentially references to the
     // references to the erased element.
