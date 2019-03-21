@@ -134,7 +134,69 @@ protected:
     std::map<std::string, std::map<CollectionUUID, CollectionMock*>> dbMap;
 };
 
+class UUIDCatalogResourceTest : public unittest::Test {
+public:
+    void setUp() {
+        for (int i = 0; i < 5; i++) {
+            NamespaceString nss("resourceDb", "coll" + std::to_string(i));
+            auto coll = std::make_unique<CollectionMock>(nss);
+            auto uuid = coll->uuid();
+            catalog.onCreateCollection(&opCtx, std::move(coll), uuid.get());
+        }
+    }
+
+    void tearDown() {
+        for (auto it = catalog.begin("resourceDb"); it != catalog.end(); ++it) {
+            auto coll = *it;
+            if (!coll) {
+                break;
+            }
+
+            catalog.removeUUIDCatalogEntry(coll->uuid().get());
+        }
+    }
+
+protected:
+    OperationContextNoop opCtx;
+    UUIDCatalog catalog;
+};
+
 namespace {
+
+TEST_F(UUIDCatalogResourceTest, LookupMissingResource) {
+    const std::string dbName = "missingDb";
+    auto rid = ResourceId(RESOURCE_DATABASE, dbName);
+    ASSERT(catalog.lookupResourceName(rid) == boost::none);
+}
+
+TEST_F(UUIDCatalogResourceTest, LookupCollectionResource) {
+    const std::string collNs = "resourceDb.coll1";
+    auto rid = ResourceId(RESOURCE_COLLECTION, collNs);
+    auto optRsrcStr = catalog.lookupResourceName(rid);
+    ASSERT(optRsrcStr != boost::none);
+
+    auto rsrcStr = *optRsrcStr;
+    // The catalog should do a secondary lookup to include the collection name.
+    ASSERT(rsrcStr.find(collNs) != std::string::npos);
+}
+
+TEST_F(UUIDCatalogResourceTest, LookupDatabaseResource) {
+    const std::string dbName = "resourceDb";
+    auto rid = ResourceId(RESOURCE_DATABASE, dbName);
+    auto optRsrcStr = catalog.lookupResourceName(rid);
+    ASSERT(optRsrcStr != boost::none);
+
+    auto rsrcStr = *optRsrcStr;
+    ASSERT(rsrcStr.find(dbName) != std::string::npos);
+}
+
+TEST_F(UUIDCatalogResourceTest, RemoveCollection) {
+    const std::string collNs = "resourceDb.coll1";
+    auto coll = catalog.lookupCollectionByNamespace(NamespaceString(collNs));
+    catalog.removeUUIDCatalogEntry(coll->uuid().get());
+    auto rid = ResourceId(RESOURCE_COLLECTION, collNs);
+    ASSERT(catalog.lookupResourceName(rid) == boost::none);
+}
 
 // Create an iterator over the UUIDCatalog and assert that all collections are present.
 // Iteration ends when the end of the catalog is reached.

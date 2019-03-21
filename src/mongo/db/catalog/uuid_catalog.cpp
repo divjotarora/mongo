@@ -34,6 +34,7 @@
 
 #include "mongo/db/catalog/database.h"
 #include "mongo/db/catalog/database_holder.h"
+#include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/log.h"
@@ -268,6 +269,9 @@ void UUIDCatalog::onCloseDatabase(Database* db) {
             removeUUIDCatalogEntry(coll->uuid().get());
         }
     }
+
+    auto rid = ResourceId(RESOURCE_DATABASE, db->name());
+    _resourceIds.erase(rid);
 }
 
 void UUIDCatalog::onCloseCatalog(OperationContext* opCtx) {
@@ -370,6 +374,25 @@ boost::optional<CollectionUUID> UUIDCatalog::next(StringData db, CollectionUUID 
     return nextEntry->first.second;
 }
 
+boost::optional<std::string> UUIDCatalog::lookupResourceName(ResourceId rid) {
+    stdx::lock_guard<stdx::mutex> lock(_catalogLock);
+    auto it = _resourceIds.find(rid);
+    if (it == _resourceIds.end()) {
+        return boost::none;
+    }
+
+    auto name = it->second;
+    if (rid.getType() == RESOURCE_COLLECTION) {
+        // For collection resources, the UUID is stored so a second lookup is needed.
+        auto uuid = UUID::parse(it->second).getValue();
+        name = _catalog.find(uuid)->second->ns().ns();
+    }
+
+    StringBuilder ss;
+    ss << "{" << uint64_t(rid) << ", " << rid.getHashId() << ", " << name;
+    return ss.str();
+}
+
 void UUIDCatalog::_registerUUIDCatalogEntry_inlock(CollectionUUID uuid,
                                                    std::unique_ptr<Collection> coll) {
     // Collection is invalid or this UUID is already taken.
@@ -386,6 +409,18 @@ void UUIDCatalog::_registerUUIDCatalogEntry_inlock(CollectionUUID uuid,
     std::pair<NamespaceString, Collection*> collNameEntry = std::make_pair(coll->ns(), coll.get());
     invariant(_collections.insert(collNameEntry).second == true);
 
+    auto collRsrcId = ResourceId(RESOURCE_COLLECTION, coll->ns().ns());
+    auto collIdPair = std::make_pair(collRsrcId, uuid.toString());
+    _resourceIds.insert(collIdPair);
+
+    auto dbName = coll->ns().db();
+    auto dbRsrcId = ResourceId(RESOURCE_DATABASE, dbName);
+    if (_resourceIds.find(dbRsrcId) == _resourceIds.end()) {
+        // First collection in this database
+        auto dbIdPair = std::make_pair(dbRsrcId, dbName);
+        _resourceIds.insert(dbIdPair);
+    }
+
     invariant(_catalog.insert(std::make_pair(uuid, std::move(coll))).second == true);
 }
 std::unique_ptr<Collection> UUIDCatalog::_removeUUIDCatalogEntry_inlock(CollectionUUID uuid) {
@@ -396,10 +431,13 @@ std::unique_ptr<Collection> UUIDCatalog::_removeUUIDCatalogEntry_inlock(Collecti
 
     auto foundColl = std::move(foundIt->second);
     LOG(2) << "unregistering collection " << foundColl->ns() << " with UUID " << uuid;
-    auto dbName = foundColl->ns().db().toString();
+    auto dbName = foundColl->ns().db();
     _catalog.erase(foundIt);
-    _orderedCollections.erase(std::make_pair(dbName, uuid));
+    _orderedCollections.erase(std::make_pair(dbName.toString(), uuid));
     _collections.erase(foundColl->ns());
+
+    auto collRsrcId = ResourceId(RESOURCE_COLLECTION, foundColl->ns().ns());
+    _resourceIds.erase(collRsrcId);
 
     // Removal from an ordered map will invalidate iterators and potentially references to the
     // references to the erased element.

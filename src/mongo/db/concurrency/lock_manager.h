@@ -41,6 +41,7 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/stdx/condition_variable.h"
+#include "mongo/stdx/functional.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/concurrency/mutex.h"
@@ -55,6 +56,8 @@ class LockManager {
     MONGO_DISALLOW_COPYING(LockManager);
 
 public:
+    using LookupRsrcFn = stdx::function<boost::optional<std::string>(ResourceId rid)>;
+
     LockManager();
     ~LockManager();
 
@@ -127,10 +130,13 @@ public:
 
     /**
      * Dumps the contents of all locks into a BSON object
-     * to be used in lockInfo command in the shell.
+     * to be used in lockInfo command in the shell. The lookupFunction callback is used to lookup
+     * a string reprsentation of a ResourceId. If the function returns boost::none, the default
+     * ResourceId::toString() function will be used.
      */
     void getLockInfoBSON(const std::map<LockerId, BSONObj>& lockToClientMap,
-                         BSONObjBuilder* result);
+                         BSONObjBuilder* result,
+                         LookupRsrcFn lookupFunction);
 
 private:
     // The lockheads need access to the partitions
@@ -178,7 +184,8 @@ private:
      */
     void _dumpBucketToBSON(const std::map<LockerId, BSONObj>& lockToClientMap,
                            const LockBucket* bucket,
-                           BSONObjBuilder* result);
+                           BSONObjBuilder* result,
+                           LookupRsrcFn lookupFunction);
 
     /**
      * Build the BSON object containing the lock info for a particular

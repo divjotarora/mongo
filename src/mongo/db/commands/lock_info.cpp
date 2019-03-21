@@ -33,6 +33,7 @@
 
 #include "mongo/db/auth/action_type.h"
 #include "mongo/db/auth/authorization_session.h"
+#include "mongo/db/catalog/uuid_catalog.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/concurrency/lock_manager_defs.h"
@@ -101,7 +102,13 @@ public:
             }
         }
 
-        getGlobalLockManager()->getLockInfoBSON(lockToClientMap, &result);
+        auto& uuidCatalog = UUIDCatalog::get(opCtx);
+        UUIDCatalog* uuidCatalogPtr = &uuidCatalog;
+        LockManager::LookupRsrcFn uuidCatalogLookupFn =
+            [uuidCatalogPtr](ResourceId rid) -> boost::optional<std::string> {
+            return uuidCatalogPtr->lookupResourceName(rid);
+        };
+        getGlobalLockManager()->getLockInfoBSON(lockToClientMap, &result, uuidCatalogLookupFn);
         return true;
     }
 } cmdLockInfo;

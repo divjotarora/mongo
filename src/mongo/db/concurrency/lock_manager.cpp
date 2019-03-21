@@ -829,7 +829,8 @@ void LockManager::dump() const {
 
 void LockManager::_dumpBucketToBSON(const std::map<LockerId, BSONObj>& lockToClientMap,
                                     const LockBucket* bucket,
-                                    BSONObjBuilder* result) {
+                                    BSONObjBuilder* result,
+                                    LookupRsrcFn lookupFunction) {
     for (auto& bucketEntry : bucket->data) {
         const LockHead* lock = bucketEntry.second;
 
@@ -838,7 +839,9 @@ void LockManager::_dumpBucketToBSON(const std::map<LockerId, BSONObj>& lockToCli
             continue;
         }
 
-        result->append("resourceId", lock->resourceId.toString());
+        auto optionalRsrcString = lookupFunction(lock->resourceId);
+        auto rsrcName = optionalRsrcString ? *optionalRsrcString : lock->resourceId.toString();
+        result->append("resourceId", rsrcName);
 
         BSONArrayBuilder grantedLocks;
         for (const LockRequest* iter = lock->grantedList._front; iter != nullptr;
@@ -875,7 +878,8 @@ void LockManager::_buildBucketBSON(const LockRequest* iter,
 }
 
 void LockManager::getLockInfoBSON(const std::map<LockerId, BSONObj>& lockToClientMap,
-                                  BSONObjBuilder* result) {
+                                  BSONObjBuilder* result,
+                                  LookupRsrcFn lookupFunction) {
     BSONArrayBuilder lockInfo;
     for (unsigned i = 0; i < _numLockBuckets; i++) {
         LockBucket* bucket = &_lockBuckets[i];
@@ -884,7 +888,7 @@ void LockManager::getLockInfoBSON(const std::map<LockerId, BSONObj>& lockToClien
         _cleanupUnusedLocksInBucket(bucket);
         if (!bucket->data.empty()) {
             BSONObjBuilder b;
-            _dumpBucketToBSON(lockToClientMap, bucket, &b);
+            _dumpBucketToBSON(lockToClientMap, bucket, &b, lookupFunction);
             lockInfo.append(b.obj());
         }
     }

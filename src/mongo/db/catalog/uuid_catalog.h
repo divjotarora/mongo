@@ -307,6 +307,12 @@ public:
      */
     boost::optional<CollectionUUID> next(StringData db, CollectionUUID uuid);
 
+    /**
+     * Lookup the name of a resource from its ResourceId. If the ResourceId is not found,
+     * boost::none is returned.
+     */
+    boost::optional<std::string> lookupResourceName(ResourceId rid);
+
     iterator begin(StringData db) const;
     iterator end() const;
 
@@ -339,6 +345,14 @@ private:
     std::map<std::pair<std::string, CollectionUUID>, Collection*> _orderedCollections;
 
     mongo::stdx::unordered_map<NamespaceString, Collection*> _collections;
+
+    /**
+     * Ordered map from ResourceId to a string that contains either a Collection UUID or database
+     * name. Collection UUIDs are stored instead of names to avoid having to keep this data
+     * structure up to date with renames.
+     */
+    std::map<ResourceId, std::string> _resourceIds;
+
     /**
      * Generation number to track changes to the catalog that could invalidate iterators.
      */
