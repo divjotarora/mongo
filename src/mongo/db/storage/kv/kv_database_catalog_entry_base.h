@@ -45,11 +45,10 @@ class KVCollectionCatalogEntry;
 class KVDatabaseCatalogEntryBase : public DatabaseCatalogEntry {
 public:
     KVDatabaseCatalogEntryBase(StringData db, KVStorageEngineInterface* engine);
-    ~KVDatabaseCatalogEntryBase() override;
 
-    bool exists() const override;
-    bool isEmpty() const override;
-    bool hasUserData() const override;
+    bool exists(OperationContext* opCtx) const override;
+    bool isEmpty(OperationContext* opCtx) const override;
+    bool hasUserData(OperationContext* opCtx) const override;
 
     int64_t sizeOnDisk(OperationContext* opCtx) const override;
 
@@ -59,11 +58,11 @@ public:
 
     Status currentFilesCompatible(OperationContext* opCtx) const override;
 
-    void getCollectionNamespaces(std::list<std::string>* out) const override;
+    void getCollectionNamespaces(OperationContext* opCtx, std::list<std::string>* out) const override;
 
-    CollectionCatalogEntry* getCollectionCatalogEntry(StringData ns) const override;
+    CollectionCatalogEntry* getCollectionCatalogEntry(OperationContext* opCtx, StringData ns) const override;
 
-    RecordStore* getRecordStore(StringData ns) const override;
+    RecordStore* getRecordStore(OperationContext* opCtx, StringData ns) const override;
 
     IndexAccessMethod* getIndex(OperationContext* opCtx,
                                 const CollectionCatalogEntry* collection,
@@ -88,10 +87,6 @@ public:
     void reinitCollectionAfterRepair(OperationContext* opCtx, const std::string& ns);
 
 protected:
-    typedef std::map<std::string, KVCollectionCatalogEntry*> CollectionMap;
-
-
     KVStorageEngineInterface* const _engine;  // not owned here
-    CollectionMap _collections;
 };
 }  // namespace mongo
